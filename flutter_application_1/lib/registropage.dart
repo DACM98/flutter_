@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/preferences.dart';
+import 'package:flutter_application_1/controllers/cliente_controller.dart';
 
 class RegistroPage extends StatefulWidget {
   const RegistroPage({super.key});
@@ -11,60 +11,71 @@ class RegistroPage extends StatefulWidget {
 class _RegistroPageState extends State<RegistroPage> {
   // Controladores y variables de estado para el formulario
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
-  bool _isPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
+  final TextEditingController _nombreController = TextEditingController();
+  final TextEditingController _correoController = TextEditingController();
+  final TextEditingController _numLicController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
+  String? _successMessage;
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
+    _nombreController.dispose();
+    _correoController.dispose();
+    _numLicController.dispose();
     super.dispose();
   }
 
-  // Lógica de registro de usuario
-  Future<void> _register() async {
+  // Método para registrar cliente usando ClienteService
+  Future<void> _registrarCliente() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _successMessage = null;
     });
 
     try {
-      // Verifica si el correo ya está registrado
-      final isRegistered = await Preferences.isEmailRegistered(_emailController.text);
-      if (isRegistered) {
-        if (!mounted) return;
-        setState(() {
-          _errorMessage = 'Este correo electrónico ya está registrado';
-        });
-        return;
-      }
-
-      // Guarda las credenciales
-      await Preferences.saveUserCredentials(
-        _emailController.text,
-        _passwordController.text,
+      // Llamada al servicio para registrar cliente
+      final resultado = await ClienteService.registrarCliente(
+        nombre: _nombreController.text.trim(),
+        correo: _correoController.text.trim(),
+        numLicencia: _numLicController.text.trim(),
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registro exitoso'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.pop(context);
+
+      if (resultado['success']) {
+        setState(() {
+          _successMessage = resultado['message'];
+        });
+        
+        // Mostrar mensaje de éxito
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(resultado['message']),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Limpiar formulario después de registro exitoso
+        _formKey.currentState!.reset();
+        _nombreController.clear();
+        _correoController.clear();
+        _numLicController.clear();
+        
+        // Opcional: Navegar a otra pantalla
+        // Navigator.pop(context);
+      } else {
+        setState(() {
+          _errorMessage = resultado['message'];
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Error: ${e.toString()}';
+        _errorMessage = 'Error inesperado: ${e.toString()}';
       });
     } finally {
       if (mounted) {
@@ -81,7 +92,7 @@ class _RegistroPageState extends State<RegistroPage> {
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 255, 99, 38),
         foregroundColor: Colors.white,
-        title: const Text('Registro'),
+        title: const Text('Registro de Cliente'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: _isLoading ? null : () => Navigator.pop(context),
@@ -103,6 +114,23 @@ class _RegistroPageState extends State<RegistroPage> {
                   color: Color.fromARGB(255, 212, 0, 255),
                 ),
                 const SizedBox(height: 32),
+                
+                // Mensaje de éxito
+                if (_successMessage != null)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.green[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _successMessage!,
+                      style: const TextStyle(color: Colors.green),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                
                 // Mensaje de error
                 if (_errorMessage != null)
                   Container(
@@ -114,13 +142,38 @@ class _RegistroPageState extends State<RegistroPage> {
                     ),
                     child: Text(
                       _errorMessage!,
-                      style: TextStyle(color: const Color.fromARGB(255, 48, 40, 40)),
+                      style: const TextStyle(color: Colors.red),
                       textAlign: TextAlign.center,
                     ),
                   ),
+                
+                // Campo de nombre
+                TextFormField(
+                  controller: _nombreController,
+                  keyboardType: TextInputType.name,
+                  enabled: !_isLoading,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor ingrese su nombre completo';
+                    }
+                    if (value.trim().length < 2) {
+                      return 'El nombre debe tener al menos 2 caracteres';
+                    }
+                    return null;
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Nombre completo',
+                    prefixIcon: const Icon(Icons.person),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
                 // Campo de correo
                 TextFormField(
-                  controller: _emailController,
+                  controller: _correoController,
                   keyboardType: TextInputType.emailAddress,
                   enabled: !_isLoading,
                   validator: (value) {
@@ -141,75 +194,34 @@ class _RegistroPageState extends State<RegistroPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Campo de contraseña
+                
+                // Campo de número de licencia
                 TextFormField(
-                  controller: _passwordController,
-                  obscureText: !_isPasswordVisible,
+                  controller: _numLicController,
+                  keyboardType: TextInputType.text,
                   enabled: !_isLoading,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Por favor ingrese su contraseña';
+                      return 'Por favor ingrese su número de licencia';
                     }
-                    if (value.length < 6) {
-                      return 'La contraseña debe tener al menos 6 caracteres';
+                    if (value.trim().length < 5) {
+                      return 'El número de licencia debe tener al menos 5 caracteres';
                     }
                     return null;
                   },
                   decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: _isLoading ? null : () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Campo de confirmar contraseña
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  obscureText: !_isConfirmPasswordVisible,
-                  enabled: !_isLoading,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor confirme su contraseña';
-                    }
-                    if (value != _passwordController.text) {
-                      return 'Las contraseñas no coinciden';
-                    }
-                    return null;
-                  },
-                  decoration: InputDecoration(
-                    labelText: 'Confirmar contraseña',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: _isLoading ? null : () {
-                        setState(() {
-                          _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
-                        });
-                      },
-                    ),
+                    labelText: 'Número de licencia',
+                    prefixIcon: const Icon(Icons.card_membership),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
+                
                 // Botón de registro
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _register,
+                  onPressed: _isLoading ? null : _registrarCliente,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 0, 255, 64),
                     foregroundColor: Colors.white,
@@ -228,7 +240,7 @@ class _RegistroPageState extends State<RegistroPage> {
                           ),
                         )
                       : const Text(
-                          'Registrarse',
+                          'Registrar Cliente',
                           style: TextStyle(fontSize: 18),
                         ),
                 ),

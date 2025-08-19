@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/main.dart';
-import 'package:flutter_application_1/preferences.dart';
 import 'package:flutter_application_1/registropage.dart';
+import 'package:flutter_application_1/controllers/cliente_controller.dart';
+import 'package:flutter_application_1/preferences.dart';
 import 'alquilerauto.dart';
 
 class Login extends StatefulWidget {
@@ -14,40 +14,20 @@ class Login extends StatefulWidget {
 class _LoginState extends State<Login> {
   // Controladores y variables de estado para el formulario
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  bool _isPasswordVisible = false;
+  final TextEditingController _correoController = TextEditingController();
+  final TextEditingController _numLicController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
 
   @override
-  void initState() {
-    super.initState();
-    _checkExistingUser(); // Verifica si ya hay usuario guardado
-  }
-
-  // Verifica si hay datos de usuario guardados
-  Future<void> _checkExistingUser() async {
-    final hasData = await Preferences.hasUserData();
-    if (hasData) {
-      final credentials = await Preferences.getUserCredentials();
-      if (credentials['email'] != null && credentials['password'] != null) {
-        setState(() {
-          _emailController.text = credentials['email']!;
-        });
-      }
-    }
-  }
-
-  @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    _correoController.dispose();
+    _numLicController.dispose();
     super.dispose();
   }
 
-  // Lógica de inicio de sesión
-  Future<void> _login() async {
+  // Método para login del cliente usando ClienteService
+  Future<void> _loginCliente() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -56,34 +36,43 @@ class _LoginState extends State<Login> {
     });
 
     try {
-      final credentials = await Preferences.getUserCredentials();
-      
-      if (credentials['email'] == _emailController.text && 
-          credentials['password'] == _passwordController.text) {
-        // Login exitoso
-        await Preferences.setLoggedIn(true);
-        if (!mounted) return;
+      // Llamada al servicio para login del cliente
+      final resultado = await ClienteService.loginCliente(
+        correo: _correoController.text.trim(),
+        numLicencia: _numLicController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      if (resultado['success']) {
+        // Login exitoso - guardar el ID del cliente
+        if (resultado['data'] != null && resultado['data']['id'] != null) {
+          await Preferences.saveClienteId(resultado['data']['id']);
+        }
+        
+        // Mostrar mensaje de éxito
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Inicio de sesión exitoso'),
+          SnackBar(
+            content: Text(resultado['message']),
             backgroundColor: Colors.green,
           ),
         );
+        
+        // Navegar a la pantalla principal después del login exitoso
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => AlquilerAutoScreen()),
         );
       } else {
         // Login fallido
-        if (!mounted) return;
         setState(() {
-          _errorMessage = 'Credenciales incorrectas';
+          _errorMessage = resultado['message'];
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Error: ${e.toString()}';
+        _errorMessage = 'Error inesperado: ${e.toString()}';
       });
     } finally {
       if (mounted) {
@@ -133,6 +122,7 @@ class _LoginState extends State<Login> {
                   color: Color.fromARGB(255, 0, 255, 64),
                 ),
                 const SizedBox(height: 32),
+                
                 // Mensaje de error
                 if (_errorMessage != null)
                   Container(
@@ -144,13 +134,14 @@ class _LoginState extends State<Login> {
                     ),
                     child: Text(
                       _errorMessage!,
-                      style: TextStyle(color: Colors.red[900]),
+                      style: const TextStyle(color: Colors.red),
                       textAlign: TextAlign.center,
                     ),
                   ),
+                
                 // Campo de correo
                 TextFormField(
-                  controller: _emailController,
+                  controller: _correoController,
                   keyboardType: TextInputType.emailAddress,
                   enabled: !_isLoading,
                   validator: (value) {
@@ -171,42 +162,34 @@ class _LoginState extends State<Login> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Campo de contraseña
+                
+                // Campo de número de licencia
                 TextFormField(
-                  controller: _passwordController,
-                  obscureText: !_isPasswordVisible,
+                  controller: _numLicController,
+                  keyboardType: TextInputType.text,
                   enabled: !_isLoading,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Por favor ingrese su contraseña';
+                      return 'Por favor ingrese su número de licencia';
                     }
-                    if (value.length < 6) {
-                      return 'La contraseña debe tener al menos 6 caracteres';
+                    if (value.trim().length < 5) {
+                      return 'El número de licencia debe tener al menos 5 caracteres';
                     }
                     return null;
                   },
                   decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: _isLoading ? null : () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
-                    ),
+                    labelText: 'Número de licencia',
+                    prefixIcon: const Icon(Icons.card_membership),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
+                
                 // Botón de iniciar sesión
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _login,
+                  onPressed: _isLoading ? null : _loginCliente,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 14, 120, 128),
                     foregroundColor: Colors.white,
@@ -230,6 +213,7 @@ class _LoginState extends State<Login> {
                         ),
                 ),
                 const SizedBox(height: 16),
+                
                 // Botón para ir a registro
                 TextButton(
                   onPressed: _isLoading

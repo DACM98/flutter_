@@ -4,6 +4,7 @@ class Preferences {
   static const String _emailKey = 'email'; // Clave para el email
   static const String _passwordKey = 'password'; // Clave para la contraseña
   static const String _isLoggedInKey = 'isLoggedIn'; // Clave para el estado de login
+  static const String _clienteIdKey = 'clienteId'; // Clave para el ID del cliente
 
   // Guarda las credenciales del usuario
   static Future<void> saveUserCredentials(String email, String password) async {
@@ -40,12 +41,25 @@ class Preferences {
     return prefs.getBool(_isLoggedInKey) ?? false;
   }
 
+  // Guarda el ID del cliente
+  static Future<void> saveClienteId(int clienteId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_clienteIdKey, clienteId);
+  }
+
+  // Recupera el ID del cliente
+  static Future<int?> getClienteId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_clienteIdKey);
+  }
+
   // Borra los datos del usuario (logout)
   static Future<void> clearUserData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_emailKey);
     await prefs.remove(_passwordKey);
     await prefs.remove(_isLoggedInKey);
+    await prefs.remove(_clienteIdKey);
   }
 
   // Verifica si hay datos de usuario guardados

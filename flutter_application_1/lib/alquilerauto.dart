@@ -3,30 +3,17 @@ import 'package:flutter/material.dart';
 // Suponiendo que tienes una clase MenuDrawerPerfil ya implementada
 import 'menu_drawer_perfil.dart';
 import 'calculadorapage.dart';
-import 'registropage.dart';
 import 'loginpage.dart';
-import 'sumapage.dart';
 import 'preferences.dart';
-
-// Modelo de vehículo
-class Vehiculo {
-  final String imagen;
-  final String marca;
-  final String modelo;
-  final double calificacion;
-  final double precioPorDia;
-
-  Vehiculo({
-    required this.imagen,
-    required this.marca,
-    required this.modelo,
-    required this.calificacion,
-    required this.precioPorDia,
-  });
-}
+import 'controllers/autos_controller.dart';
+import 'detalleVehiculo.dart';
 
 // Widget principal con navegación inferior y menú lateral
 class AlquilerAutoScreen extends StatefulWidget {
+  final int? clienteId; // Agregamos clienteId al constructor
+  
+  const AlquilerAutoScreen({super.key, this.clienteId});
+
   @override
   _AlquilerAutoScreenState createState() => _AlquilerAutoScreenState();
 }
@@ -34,59 +21,59 @@ class AlquilerAutoScreen extends StatefulWidget {
 class _AlquilerAutoScreenState extends State<AlquilerAutoScreen> {
   int _selectedIndex = 0; // Índice de la pestaña seleccionada
   String _busqueda = '';
+  
+  // Variables para manejar los autos desde la API
+  List<Map<String, dynamic>> _listaDeAutos = [];
+  bool _isLoading = false;
+  String? _errorMessage;
+  int? _clienteId; // Variable para almacenar el ID del cliente
 
-  // Lista de vehículos de ejemplo
-  final List<Vehiculo> _vehiculos = [
-    Vehiculo(
-      imagen: 'https://fastly.picsum.photos/id/26/4209/2769.jpg?hmac=vcInmowFvPCyKGtV7Vfh7zWcA_Z0kStrPDW3ppP0iGI',
-      marca: 'Toyota',
-      modelo: 'Corolla',
-      calificacion: 4.5,
-      precioPorDia: 45.0,
-    ),
-    Vehiculo(
-      imagen: 'https://images.unsplash.com/photo-1511918984145-48de785d4c4e?w=400&h=300&fit=crop',
-      marca: 'Honda',
-      modelo: 'Civic',
-      calificacion: 4.7,
-      precioPorDia: 50.0,
-    ),
-    Vehiculo(
-      imagen: 'https://images.unsplash.com/photo-1461632830798-3adb3034e4c8?w=400&h=300&fit=crop',
-      marca: 'Ford',
-      modelo: 'Focus',
-      calificacion: 4.3,
-      precioPorDia: 40.0,
-    ),
-    Vehiculo(
-      imagen: 'https://images.unsplash.com/photo-1502877338535-766e1452684a?w=400&h=300&fit=crop',
-      marca: 'Chevrolet',
-      modelo: 'Camaro',
-      calificacion: 4.8,
-      precioPorDia: 60.0,
-    ),
-    Vehiculo(
-      imagen: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=300&fit=crop',
-      marca: 'BMW',
-      modelo: 'Serie 3',
-      calificacion: 4.9,
-      precioPorDia: 70.0,
-    ),
-    Vehiculo(
-      imagen: 'https://images.unsplash.com/photo-1503736334956-4c8f8e92946d?w=400&h=300&fit=crop',
-      marca: 'Audi',
-      modelo: 'A4',
-      calificacion: 4.6,
-      precioPorDia: 65.0,
-    ),
-    Vehiculo(
-      imagen: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=300&fit=crop',
-      marca: 'Mercedes',
-      modelo: 'Clase C',
-      calificacion: 4.7,
-      precioPorDia: 75.0,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _inicializarClienteId();
+    _cargarAutos();
+  }
+
+  // Método para inicializar el clienteId
+  Future<void> _inicializarClienteId() async {
+    // Si no se pasó por constructor, intentar obtenerlo de SharedPreferences
+    if (widget.clienteId != null) {
+      _clienteId = widget.clienteId;
+    } else {
+      _clienteId = await Preferences.getClienteId();
+    }
+    
+    // Debug: imprimir el clienteId
+    print('Cliente ID inicializado: $_clienteId');
+  }
+
+  // Método para cargar autos desde la API
+  Future<void> _cargarAutos() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final autos = await AutosController.obtenerAutosDisponibles();
+      setState(() {
+        _listaDeAutos = autos;
+        _isLoading = false;
+      });
+      
+      // Debug: imprimir cantidad de autos cargados
+      print('Autos cargados: ${_listaDeAutos.length}');
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error al cargar autos: ${e.toString()}';
+        _isLoading = false;
+      });
+      
+      // Debug: imprimir error
+      print('Error al cargar autos: $e');
+    }
+  }
 
   // Pestaña de bienvenida con imagen de fondo y accesos rápidos
   Widget _buildInicio() {
@@ -99,68 +86,98 @@ class _AlquilerAutoScreenState extends State<AlquilerAutoScreen> {
             fit: BoxFit.cover,
           ),
         ),
-        // Capa de color para oscurecer la imagen
+        // Contenido superpuesto
         Container(
-          color: Colors.black.withOpacity(0.4),
-        ),
-        // Botones de expansión
-        Center(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Acceso rápido a Suma
-                  ExpansionTile(
-                    title: const Text('Suma', style: TextStyle(color: Colors.white)),
-                    leading: const Icon(Icons.add, color: Colors.white),
-                    trailing: const Icon(Icons.radio_button_checked, color: Colors.white),
-                    children: <Widget>[
-                      ListTile(
-                        title: const Text('haz clic para sumar'),
-                        onTap: () => _navigateTo(context, const SumaPage()),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withOpacity(0.3),
+                Colors.black.withOpacity(0.7),
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                const SizedBox(height: 60),
+                // Título principal
+                const Text(
+                  'Bienvenido a\nAlquiler de Autos',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Subtítulo
+                const Text(
+                  'Encuentra el vehículo perfecto\npara tu viaje',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.white70,
+                    height: 1.3,
+                  ),
+                ),
+                const Spacer(),
+                // Botones de acceso rápido
+                Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    children: [
+                      // Botón para ir a alquiler
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedIndex = 1;
+                            });
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color.fromARGB(255, 255, 99, 38),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text(
+                            'Ver Vehículos Disponibles',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Botón para ir a calculadora
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: OutlinedButton(
+                          onPressed: () => _navigateTo(context, CalculadoraPage()),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white, width: 2),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text(
+                            'Calculadora de Precios',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  // Acceso rápido a Calculadora
-                  ExpansionTile(
-                    title: const Text('Calculadora', style: TextStyle(color: Colors.white)),
-                    leading: const Icon(Icons.calculate, color: Colors.white),
-                    trailing: const Icon(Icons.radio_button_checked, color: Colors.white),
-                    children: <Widget>[
-                      ListTile(
-                        title: const Text('haz clic para Calculadora'),
-                        onTap: () => _navigateTo(context, const CalculadoraPage()),
-                      ),
-                    ],
-                  ),
-                  // Acceso rápido a Registro
-                  ExpansionTile(
-                    title: const Text('Registro', style: TextStyle(color: Colors.white)),
-                    leading: const Icon(Icons.app_registration, color: Colors.white),
-                    trailing: const Icon(Icons.radio_button_checked, color: Colors.white),
-                    children: <Widget>[
-                      ListTile(
-                        title: const Text('haz click para Registro'),
-                        onTap: () => _navigateTo(context, const RegistroPage()),
-                      ),
-                    ],
-                  ),
-                  // Acceso rápido a Login
-                  ExpansionTile(
-                    title: const Text('Login', style: TextStyle(color: Colors.white)),
-                    leading: const Icon(Icons.login, color: Colors.white),
-                    trailing: const Icon(Icons.radio_button_checked, color: Colors.white),
-                    children: <Widget>[
-                      ListTile(
-                        title: const Text('haz click para Login'),
-                        onTap: () => _navigateTo(context, const Login()),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 40),
+              ],
             ),
           ),
         ),
@@ -168,66 +185,259 @@ class _AlquilerAutoScreenState extends State<AlquilerAutoScreen> {
     );
   }
 
-  // Pestaña de alquiler: muestra todos los autos disponibles y permite buscar
+  // Pestaña de alquiler: muestra la lista de vehículos disponibles
   Widget _buildAlquiler() {
-    // Filtrar vehículos según búsqueda
-    final vehiculosFiltrados = _vehiculos.where((v) {
-      final query = _busqueda.toLowerCase();
-      return v.marca.toLowerCase().contains(query) ||
-          v.modelo.toLowerCase().contains(query);
-    }).toList();
     return Column(
       children: [
+        // Barra de búsqueda
         Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(16.0),
           child: TextField(
-            decoration: InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Buscar vehículo',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onChanged: (valor) {
+            onChanged: (value) {
               setState(() {
-                _busqueda = valor;
+                _busqueda = value;
               });
             },
+            decoration: InputDecoration(
+              hintText: 'Buscar vehículos...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+              filled: true,
+              fillColor: Colors.grey[100],
+            ),
           ),
         ),
+        
+        // Contenido de la lista
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: vehiculosFiltrados.length,
-            itemBuilder: (context, index) {
-              final vehiculo = vehiculosFiltrados[index];
-              return Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: ListTile(
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      vehiculo.imagen,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(Icons.car_rental, size: 60, color: Colors.grey);
-                      },
-                    ),
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: Color.fromARGB(255, 255, 99, 38),
                   ),
-                  title: Text('${vehiculo.marca} Modelo ${vehiculo.modelo}'),
-                  subtitle: Text('Año: 2022 - \$99.99/día'),
-                  trailing: Icon(Icons.arrow_forward_ios),
-                ),
-              );
-            },
-          ),
+                )
+              : _errorMessage != null
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: Colors.red[300],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.red[600],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: _cargarAutos,
+                            child: const Text('Reintentar'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _listaDeAutos.isEmpty
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.directions_car_outlined,
+                                size: 64,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'No hay vehículos disponibles',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _buildListaAutos(),
         ),
       ],
+    );
+  }
+
+  // Widget para construir la lista de autos
+  Widget _buildListaAutos() {
+    // Filtrar autos según la búsqueda
+    final autosFiltrados = _listaDeAutos.where((auto) {
+      final busqueda = _busqueda.toLowerCase();
+      return auto['marca'].toString().toLowerCase().contains(busqueda) ||
+             auto['modelo'].toString().toLowerCase().contains(busqueda) ||
+             auto['placa'].toString().toLowerCase().contains(busqueda);
+    }).toList();
+
+    return RefreshIndicator(
+      onRefresh: _cargarAutos,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: autosFiltrados.length,
+        itemBuilder: (context, index) {
+          final auto = autosFiltrados[index];
+          return Card(
+            elevation: 4,
+            margin: const EdgeInsets.only(bottom: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: InkWell(
+              onTap: () => _navegarADetalle(auto),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    // Imagen del vehículo
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: auto['imagen'] != null && auto['imagen'].isNotEmpty
+                          ? Image.network(
+                              auto['imagen'],
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: 80,
+                                  height: 80,
+                                  color: Colors.grey[300],
+                                  child: const Icon(
+                                    Icons.directions_car,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
+                                );
+                              },
+                            )
+                          : Container(
+                              width: 80,
+                              height: 80,
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.directions_car,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(width: 16),
+                    
+                    // Información del vehículo
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${auto['marca']} ${auto['modelo']}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Año: ${auto['anio']}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Placa: ${auto['placa']}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.attach_money,
+                                size: 16,
+                                color: Colors.green[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '\$${auto['valorAlquiler']}/día',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Estado de disponibilidad
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: auto['disponible'] ? Colors.green[100] : Colors.red[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        auto['disponible'] ? 'Disponible' : 'No Disponible',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: auto['disponible'] ? Colors.green[700] : Colors.red[700],
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // Método para navegar al detalle del vehículo
+  Future<void> _navegarADetalle(Map<String, dynamic> auto) async {
+    // Asegurar que tenemos el clienteId
+    if (_clienteId == null) {
+      _clienteId = await Preferences.getClienteId();
+    }
+    
+    // Debug: imprimir datos de navegación
+    print('Navegando al detalle del vehículo:');
+    print('Auto ID: ${auto['id']}');
+    print('Cliente ID: $_clienteId');
+    print('Marca: ${auto['marca']}');
+    print('Modelo: ${auto['modelo']}');
+    
+    if (!mounted) return;
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DetalleVehiculoScreen(
+          auto: auto,
+          clienteId: _clienteId ?? 0,
+        ),
+      ),
     );
   }
 
